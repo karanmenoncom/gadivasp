@@ -1,9 +1,11 @@
 # gadivasp
 
-This repository documents and packages **my own DFT workflow** for studying ammonia decomposition on
+This repository documents and packages for **my own DFT workflow** for studying ammonia decomposition on
 charged (photo-excited) Ni, Cu and CeO2 surfaces with VASP on NCI Gadi. The point is not the ASE
 wrappers; it is the set of conventions I developed so results are comparable across surfaces, sites
-and charge states. They are written up in [`docs/METHODS.md`](docs/METHODS.md) and implemented in the package:
+and charge states. The purpose was to have one notebook workflow where slab/crystal structure creation, VASP calculator setup, job submission, data-processing and visualisation can be carried out in a single jupyter environment.
+
+They are written up in [`docs/METHODS.md`](docs/METHODS.md) and implemented in the package:
 
 * **Charged-slab hot-electron model:** `NELECT` rebuilt from composition for each state, plus 1/L^2 + 1/L^3 vacuum extrapolation for charged cells.
 * **Index-stable slabs:** built from relaxed bulk and sorted by z, so constraints and adsorbate indices are predictable.
