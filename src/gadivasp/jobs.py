@@ -23,7 +23,8 @@ def render_jobscript(directory, name, cfg, ncpus=None, mem=None, walltime=None,
     storage = cfg.get("storage")
     text = template.format(
         name=re.sub(r"[^A-Za-z0-9_.-]", "_", name)[:15],   # PBS truncates long names
-        project=cfg["project"], queue=cfg["queue"],
+        project=cfg["project"],
+        queue_line=f"#PBS -q {cfg['queue']}" if cfg.get("queue") else "",
         walltime=walltime or res["walltime"], ncpus=ncpus or res["ncpus"],
         mem=mem or res["mem"], executable=executable or cfg["executable"],
         modules=" ".join(cfg["modules"]),
@@ -87,3 +88,12 @@ def wait_for(job_ids, interval=60, timeout=None, verbose=True):
         if timeout and time.time() - t0 > timeout:
             raise TimeoutError(f"still active after {timeout}s: {[j['job_id'] for j in active]}")
         time.sleep(interval)
+
+
+def job_id_from_output(directory, name="vasp.out"):
+    """ASE redirects the command's stdout to <dir>/vasp.out; for qsub that is the job id."""
+    f = Path(directory) / name
+    if not f.exists():
+        return None
+    m = re.search(r"\d+\.gadi-pbs", f.read_text(errors="ignore"))
+    return m.group(0) if m else None

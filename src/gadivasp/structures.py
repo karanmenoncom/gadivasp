@@ -116,3 +116,19 @@ def check_forces(atoms, threshold=0.03):
     """True if any force component exceeds `threshold` eV/A (manuscript notebook)."""
     f = atoms.get_forces()
     return bool((abs(f) > threshold).any()), float(abs(f).max())
+
+
+def adsorb_atop(slab, adsorbate, on_atom=None, height=2.0, anchor=0):
+    """Place `adsorbate` (Atoms) above a slab atom (default: the highest one), atop site.
+
+    `anchor` is the index of the adsorbate atom that sits at `height` above the site (N for
+    NH3). Adsorbate indices follow the slab, e.g. N = len(slab), H = len(slab)+1... Keeps the
+    slab's constraints."""
+    from ase.build import add_adsorbate
+    z = slab.positions[:, 2]
+    i = int(z.argmax()) if on_atom is None else on_atom
+    new = slab.copy()
+    new.set_constraint(slab.constraints)
+    add_adsorbate(new, adsorbate, height=height, position=tuple(slab.positions[i, :2]),
+                  mol_index=anchor)
+    return new

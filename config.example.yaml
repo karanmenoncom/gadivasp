@@ -2,14 +2,15 @@
 # Search order: $GADIVASP_CONFIG, ./config.yaml, ~/.gadivasp.yaml
 project: abc1                    # NCI project code (#PBS -P)
 scratch_root: /scratch/abc1/USER # all calculations are created below here
-queue: normalbw
-modules: ["openmpi/4.1.2", "vasp/5.4.4"]   # pinned; order matters
+queue: null                      # null = Gadi default queue (no -q line), as in the original jobscript.py.
+                                 # Set e.g. normalbw only if you need it (28-core nodes: use ncpus multiples of 28).
+modules: ["vasp/5.4.4"]          # always pin the version; add "openmpi/4.1.2" first to pin MPI too
 executable: vasp_std             # vasp_gam for gas-phase molecules
 storage: null                    # e.g. "scratch/abc1+gdata/xy12" if needed
 default_resources:
-  ncpus: 56
-  mem: 100gb
-  walltime: "4:00:00"
+  ncpus: 48                      # normal queue: 48 cores per node, request multiples of 48
+  mem: 50gb
+  walltime: "1:00:00"
 # Optional helper programs for Bader analysis
 chgsum_script: ~/scripts/chgsum.pl
 bader_exe: ~/scripts/bader

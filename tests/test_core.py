@@ -5,9 +5,9 @@ from gadivasp import charged, structures, vacuum, jobs, presets
 from gadivasp.dos import dband_stats
 from gadivasp.bader import read_acf
 
-CFG = {"project": "abc1", "queue": "normalbw", "modules": ["openmpi/4.1.2", "vasp/5.4.4"],
+CFG = {"project": "abc1", "queue": None, "modules": ["vasp/5.4.4"],
        "executable": "vasp_std", "storage": None, "zval": {"Ni": 10, "N": 5, "H": 1},
-       "default_resources": {"ncpus": 56, "mem": "100gb", "walltime": "4:00:00"}}
+       "default_resources": {"ncpus": 48, "mem": "50gb", "walltime": "1:00:00"}}
 
 
 def test_nelect_matches_notebook():
@@ -29,13 +29,15 @@ def test_jobscript(tmp_path):
     f = jobs.render_jobscript(tmp_path, "slab_1e_relax", CFG, ncpus=28)
     t = f.read_text()
     assert "#PBS -P abc1" in t and "ncpus=28" in t and "-l wd" in t
-    assert "module load openmpi/4.1.2 vasp/5.4.4" in t and "storage" not in t
+    assert "module load vasp/5.4.4" in t and "storage" not in t and "#PBS -q" not in t
+    t2 = jobs.render_jobscript(tmp_path, "x", dict(CFG, queue="normalbw", modules=["openmpi/4.1.2", "vasp/5.4.4"]), filename="j2.sh").read_text()
+    assert "#PBS -q normalbw" in t2 and "module load openmpi/4.1.2 vasp/5.4.4" in t2
 
 
 def test_qstat_parser():
     sample = ("\ngadi-pbs:\n" + " " * 60 + "Req'd Req'd Elap\n"
               "Job ID Username Queue Jobname SessID NDS TSK Memory Time S Time\n"
-              "123456.gadi-pbs km2447 normalbw slab_1e 4242 2 56 100gb 04:00 R 00:10\n"
+              "123456.gadi-pbs user1 normalbw slab_1e 4242 2 56 100gb 04:00 R 00:10\n"
               "   Job run at Tue\n")
     j = jobs.parse_qstat(sample)
     assert j[0]["status"] == "R" and j[0]["name"] == "slab_1e"
@@ -71,16 +73,63 @@ def _fake_potcars(root):
                                   "   ENMAX  =  270.000; ENMIN  =  202.500 eV\n End of Dataset\n")
 
 
-def test_prepare_dry_run(tmp_path, monkeypatch):
+def _fake_cluster(tmp_path, monkeypatch, qstat_line=""):
+    """Fake `qsub` / `qstat` on PATH so the ASE-submits-the-job route can be tested."""
     _fake_potcars(tmp_path / "pp")
     monkeypatch.setenv("VASP_PP_PATH", str(tmp_path / "pp"))
-    cfg = dict(CFG, scratch_root=str(tmp_path))
-    slab = fcc111("Ni", size=(2, 2, 3), a=3.52, vacuum=6)
+    bin_ = tmp_path / "bin"
+    bin_.mkdir()
+    (bin_ / "qsub").write_text(f'#!/bin/bash\necho "$(pwd) $@" >> {tmp_path}/qsub.log\necho 424242.gadi-pbs\n')
+    (bin_ / "qstat").write_text("#!/bin/bash\nprintf 'h1\\nh2\\nh3\\n'\n"
+                                + (f"echo '{qstat_line}'\n" if qstat_line else ""))
+    for f in bin_.iterdir():
+        f.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bin_}:" + __import__("os").environ["PATH"])
+    return tmp_path / "qsub.log"
+
+
+def test_get_potential_energy_route_submits_once(tmp_path, monkeypatch):
+    log = _fake_cluster(tmp_path, monkeypatch)
+    cfg = dict(CFG, scratch_root=str(tmp_path / "scratch"))
+    slab = fcc111("Ni", size=(2, 2, 3), a=3.52, vacuum=6)          # note: pbc not set by hand
     c = gv.Calculation("ni_relax", slab, cfg, preset="relax", charge=1)
-    c.prepare(dry_run=True)
-    incar = (c.directory / "INCAR").read_text()
+    jid = c.submit()                                                # atoms.get_potential_energy()
+    assert jid == "424242.gadi-pbs"
+    d = c.directory
+    incar = (d / "INCAR").read_text()
     assert "NELECT = 121" in incar and "IBRION = 2" in incar
-    assert (c.directory / "job.sh").exists() and (c.directory / "manifest.json").exists()
+    assert {"POSCAR", "KPOINTS", "POTCAR", "job.sh", "manifest.json"} <= {p.name for p in d.iterdir()}
+    assert str(d) in log.read_text() and "job.sh" in log.read_text()   # qsub ran INSIDE the folder
+    assert "#PBS -l wd" in (d / "job.sh").read_text()
+
+
+def test_no_double_submission(tmp_path, monkeypatch):
+    log = _fake_cluster(tmp_path, monkeypatch,
+                        qstat_line="424242.gadi-pbs user1 normalbw ni_relax 1 2 56 100gb 04:00 R 00:01")
+    cfg = dict(CFG, scratch_root=str(tmp_path / "scratch"))
+    c = gv.Calculation("ni_relax", fcc111("Ni", size=(2, 2, 3), a=3.52, vacuum=6), cfg)
+    c.submit()
+    assert c.status() == "Running"
+    assert c.submit() == "active"                                   # already queued/running: not resubmitted
+    assert log.read_text().count("\n") == 1
+    c.submit(force=True)
+    assert log.read_text().count("\n") == 2
+
+
+def test_jobscript_dropin_sets_ase_command(tmp_path, monkeypatch):
+    from gadivasp import jobscript
+    p = jobscript.jobscript(ncpus=84, mem="60gb", walltime="4:00:00", cfg=CFG, path=tmp_path / "jobscript.job")
+    assert "ncpus=84" in p.read_text()
+    assert __import__("os").environ["ASE_VASP_COMMAND"] == f"qsub {p}"
+
+
+def test_show_structure(tmp_path):
+    import matplotlib
+    matplotlib.use("Agg")
+    from gadivasp.plotting import structure_views
+    slab = fcc111("Ni", size=(2, 2, 3), a=3.52, vacuum=6)
+    structure_views(slab + molecule("NH3")).savefig(tmp_path / "v.png")
+    assert (tmp_path / "v.png").stat().st_size > 1000
 
 
 def test_acf(tmp_path):
@@ -155,3 +204,12 @@ def test_bonded_metals_and_acf(tmp_path):
     df = read_bader(acf, atoms, {"Ni": 10, "N": 5})
     assert abs(df.loc[3, "CHARGE_TRANSFER"] + 0.6) < 1e-9
     assert list(bonded_metals(df).index) == [0, 1]                  # bridge site
+
+
+def test_adsorb_atop():
+    from gadivasp.structures import adsorb_atop
+    slab = fcc111("Ni", size=(2, 2, 3), a=3.52, vacuum=6)
+    ads = adsorb_atop(slab, molecule("NH3"), height=2.0)
+    n = len(slab)
+    assert ads.get_chemical_symbols()[n] == "N" and len(ads) == n + 4
+    assert abs(ads.positions[n, 2] - slab.positions[:, 2].max() - 2.0) < 1e-6

@@ -1,7 +1,7 @@
 #!/bin/bash
 #PBS -N {name}
 #PBS -P {project}
-#PBS -q {queue}
+{queue_line}
 #PBS -l walltime={walltime}
 #PBS -l ncpus={ncpus}
 #PBS -l mem={mem}

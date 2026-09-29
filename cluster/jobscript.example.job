@@ -1,0 +1,19 @@
+#!/bin/bash
+# What jobscript.jobscript(ncpus, mem, walltime) writes (defaults 48 cpus, 50gb, 1:00:00).
+# `-l wd` matters: ASE runs `qsub <script>` inside the calculation folder and the job must
+# start there. No `-q` line: the Gadi default queue is used.
+
+#PBS -l walltime=1:00:00
+#PBS -l mem=50gb
+#PBS -P PROJECT
+#PBS -l ncpus=48
+#PBS -l software=vasp
+#PBS -l wd
+
+# Load module, always specify version number.
+module load vasp/5.4.4
+
+# Must include `#PBS -l storage=scratch/PROJECT+gdata/XYZ` if the job
+# needs access to /scratch/PROJECT/ and /g/data/XYZ/.
+
+mpirun vasp_std >vasp.log

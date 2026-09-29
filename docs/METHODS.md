@@ -4,6 +4,14 @@ This is a record of the choices built into the workflow, each traceable to a not
 developed. It is the reason the repository exists: ASE and VASP do the calculations, but these
 conventions are what make the results comparable across systems and charge states.
 
+## 0. Submission through ASE (`jobscript`, `workflow.Calculation`)
+Attach a `Vasp` calculator, call `atoms.get_potential_energy()`: ASE writes INCAR/KPOINTS/POSCAR/POTCAR
+and runs the configured command (`qsub job.sh`) inside the calculation folder, so the whole
+build -> set -> submit -> read -> plot cycle lives in one notebook. `jobscript.jobscript(ncpus, mem,
+walltime)` sets the resources for the next submission. `#PBS -l wd` makes the job run where ASE
+called `qsub`; the OUTCAR `FileNotFoundError` on return means "queued"; the job id is read back from
+ASE's `vasp.out`. Repeat calls would resubmit, so the wrapper checks results and `qstat` first.
+
 ## 1. Slab construction with index conventions (`structures.slab_from_bulk`)
 Slabs come from a *relaxed bulk* cell (Ni bulk at k = 28x28x28), cut with `surface()`, expanded
 laterally, then **sorted by z**. Atom indices then run bottom to top, so "fix the bottom layers" is

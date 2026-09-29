@@ -27,6 +27,9 @@ and charge states. They are written up in [`docs/METHODS.md`](docs/METHODS.md) a
 
 ## Install (on Gadi or in ARE)
 
+First-time cluster setup (bashrc, job script, POTCARs) is in [`docs/GADI_SETUP.md`](docs/GADI_SETUP.md) with templates in `cluster/`.
+
+
 ```bash
 git clone https://github.com/<you>/gadivasp && cd gadivasp
 pip install --user -e .
@@ -37,33 +40,39 @@ cp config.example.yaml config.yaml    # then edit project, scratch_root, modules
 POTCARs are never included (VASP licence): point ASE at your own copy
 (`VASP_PP_PATH`, or `[vasp] pp_path` in `~/.config/ase/config.ini`).
 
-## Minimal example
+## How it works: ASE + VASP + Gadi in one call
+
+The pipeline is ASE-native. `ASE_VASP_COMMAND` (or a per-calculation `command`) is `qsub job.sh`,
+so asking a calculator-attached `Atoms` for its energy does everything:
 
 ```python
 import gadivasp as gv
-from gadivasp.structures import ni111_slab, fix_bottom_layers
+from gadivasp import jobscript, structures, plotting
 
-cfg  = gv.load_config()
-slab = fix_bottom_layers(ni111_slab(size=(4, 4, 5), total_height=18.0), n_free_layers=3)
+cfg = gv.load_config()
+jobscript.jobscript(ncpus=96, mem="100gb", walltime="4:00:00", cfg=cfg)   # PBS script + ASE_VASP_COMMAND
 
-relax = gv.Calculation("slab_1e_relax", slab, cfg, preset="relax", charge=+1,
-                       resources=dict(ncpus=56, mem="100gb", walltime="4:00:00"))
-relax.prepare()
-relax.submit()
-gv.wait_for([relax.job_id])
-print(relax.energy(), relax.converged())
+slab = structures.slab_from_bulk(ni_bulk, (1, 1, 1), layers=5, repeat=(4, 4))    # build
+calc = gv.Calculation("slab_1e", slab, cfg, preset="relax", charge=+1)          # calculator setter
+calc.submit()               # = atoms.get_potential_energy(): writes inputs, runs qsub in the folder
+calc.status()               # Queued / Running / converged
+plotting.structure_views(calc.atoms())                                           # visualise
 ```
 
-See `examples/` for a notebook covering a full adsorption-energy cycle and a vacuum-convergence fit.
-`sample_data/` holds tiny synthetic inputs so the analysis code runs without cluster access.
+`get_potential_energy()` returns as soon as the job is queued; the `FileNotFoundError` for OUTCAR
+that ASE then raises simply means "not finished yet" and is handled. Plain ASE resubmits on every
+call, so `submit()` checks the queue and the results first. `#PBS -l wd` in the job script is what
+makes the job run in the folder ASE called `qsub` from.
+
+See `examples/adsorption_cycle.ipynb` for slab creation, calculator, submission and visualisation end to end.
 
 ## Design notes
 
 * One directory per calculation, with `INCAR/KPOINTS/POSCAR/POTCAR`, `job.sh` and `manifest.json`
   (job id, parameters, timestamps) so every result can be traced back.
-* Jobs are submitted with `qsub` from inside the calculation directory (`#PBS -l wd`), not through
-  ASE's blocking `get_potential_energy()`, so `ASE_VASP_COMMAND` is not needed.
-* Modules are pinned (`openmpi/4.1.2`, `vasp/5.4.4`) in `config.yaml`.
+* Jobs are submitted through ASE itself (`get_potential_energy()` runs `qsub` in the calculation
+  directory), with a guard against duplicate submission.
+* The VASP module version is pinned in `config.yaml` (`vasp/5.4.4`).
 
 ## Tests
 

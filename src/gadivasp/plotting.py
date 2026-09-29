@@ -45,3 +45,35 @@ def dos_plot(energies, dos_up, dos_down=None, ax=None, label=None):
     ax.set_ylabel("Density of states")
     ax.set_yticks([0])
     return ax
+
+
+ELEMENT_COLORS = {"Ni": "lightyellow", "Cu": "orange", "N": "skyblue", "H": "lightgreen",
+                  "O": "red", "C": "lightgrey", "Ce": "gold", "Pt": "silver", "Au": "gold"}
+
+
+def show_structure(atoms, rotation="-90x,0y,0z", colors=None, title=None, ax=None, axes_arrows=True):
+    """One view of a structure with your colour scheme and small x/y/z arrows (side view by
+    default; use rotation='0x,0y,0z' for the top view)."""
+    from ase.visualize.plot import plot_atoms
+    ax = ax or plt.figure(figsize=(5, 5)).gca()
+    cols = colors or [ELEMENT_COLORS.get(s, "grey") for s in atoms.get_chemical_symbols()]
+    plot_atoms(atoms, ax, rotation=rotation, colors=cols, show_unit_cell=2)
+    if axes_arrows:
+        x0, y0 = ax.get_xlim()[0] + 1, ax.get_ylim()[0] + 1
+        horiz, vert = ("x", "z") if rotation.startswith("-90x") else ("x", "y")
+        ax.arrow(x0, y0, 1, 0, head_width=0.4, head_length=0.6, fc="red", ec="red")
+        ax.arrow(x0, y0, 0, 1, head_width=0.4, head_length=0.6, fc="blue", ec="blue")
+        ax.text(x0 + 1.2, y0 - 0.3, horiz, fontweight="bold")
+        ax.text(x0 - 0.5, y0 + 1.3, vert, fontweight="bold")
+    ax.set_xticks([]); ax.set_yticks([])
+    if title:
+        ax.set_title(title)
+    return ax
+
+
+def structure_views(atoms, title=None):
+    """Side and top view next to each other."""
+    fig, axs = plt.subplots(1, 2, figsize=(9, 4.5))
+    show_structure(atoms, "-90x,0y,0z", ax=axs[0], title=title)
+    show_structure(atoms, "0x,0y,0z", ax=axs[1])
+    return fig

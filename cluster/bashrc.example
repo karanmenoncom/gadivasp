@@ -1,0 +1,17 @@
+# ---- Gadi ~/.bashrc additions for gadivasp (example: replace the ALL-CAPS placeholders) ----
+# Everything else in the default Gadi .bashrc can stay as it is.
+
+# ASE submits every VASP job through this command. gadivasp.jobscript.jobscript() rewrites the
+# script and re-exports this variable from Python; this default covers plain-ASE notebooks.
+export ASE_VASP_COMMAND="qsub $HOME/jobscript.job"
+
+# ASE reads POTCARs from $VASP_PP_PATH/potpaw_PBE/<element>/POTCAR (licensed; never commit these).
+export VASP_PP_PATH=$HOME/vasp
+
+# Optional tools used by the analysis modules
+export PATH=/scratch/PROJECT/USER/vaspkit.1.3.5/bin:${PATH}     # VASPKIT (pre/post-processing)
+# Bader + chgsum.pl live in ~/scripts and are set as `bader_exe` / `chgsum_script` in config.yaml
+
+# Only if you also use GPAW (kept from the original setup; delete otherwise)
+# export PYTHONPATH=/scratch/PROJECT/USER/software/gpaw/lib/python3.11/site-packages:$PYTHONPATH
+# export GPAW_SETUP_PATH=/scratch/PROJECT/USER/software/gpaw/gpaw-setups-24.1.0
