@@ -1,0 +1,27 @@
+# VASP: never commit licensed or bulky files
+POTCAR
+POTCAR.*
+potpaw*/
+WAVECAR
+CHGCAR*
+CHG
+AECCAR*
+PROCAR
+LOCPOT
+vasprun.xml
+OUTCAR
+XDATCAR
+DOSCAR
+EIGENVAL
+IBZKPT
+OSZICAR
+vasp.log
+*.o[0-9]*
+*.e[0-9]*
+# local config (contains project code / user)
+config.yaml
+# python
+__pycache__/
+*.egg-info/
+.ipynb_checkpoints/
+.pytest_cache/

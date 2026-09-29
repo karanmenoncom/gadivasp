@@ -1,0 +1,17 @@
+# Copy to config.yaml (git-ignored) or ~/.gadivasp.yaml and edit.
+# Search order: $GADIVASP_CONFIG, ./config.yaml, ~/.gadivasp.yaml
+project: abc1                    # NCI project code (#PBS -P)
+scratch_root: /scratch/abc1/USER # all calculations are created below here
+queue: normalbw
+modules: ["openmpi/4.1.2", "vasp/5.4.4"]   # pinned; order matters
+executable: vasp_std             # vasp_gam for gas-phase molecules
+storage: null                    # e.g. "scratch/abc1+gdata/xy12" if needed
+default_resources:
+  ncpus: 56
+  mem: 100gb
+  walltime: "4:00:00"
+# Optional helper programs for Bader analysis
+chgsum_script: ~/scripts/chgsum.pl
+bader_exe: ~/scripts/bader
+# Nominal valence electrons of the PAW datasets you use (check POTCAR ZVAL)
+zval: {Ni: 10, N: 5, H: 1, O: 6, Ce: 12}
